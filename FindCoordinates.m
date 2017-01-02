@@ -1,8 +1,8 @@
 function [ BB ] = FindCoordinates( I , type)
 FDetect = vision.CascadeObjectDetector(type);
 BB = step(FDetect,I);
-k = 8;
-while size(BB,1) ~= 1
+k = 1;
+while size(BB,1) > 1
     
     FDetect = vision.CascadeObjectDetector(type,'MergeThreshold',k);
     BB = step(FDetect,I);
