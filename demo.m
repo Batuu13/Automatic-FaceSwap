@@ -3,13 +3,13 @@
 
 %%%%%%%%%%%%%%%%
 
-target = im2double(imread('a.jpg'));
-source = im2double(imread('b.jpg'));
+target = im2double(imread('4t.jpg'));
+source = im2double(imread('4s.jpg'));
 %%
 
 
 
-%target = imadjust(target,[],[],0.5); daha iyi face bulma iÃ§in
+target = imadjust(target,[],[],0.5); 
 
 tic;
 coor_Mouth = FindCoordinates(target,'Mouth');
@@ -20,90 +20,98 @@ toc;
 tic;
 coor_EyeL = FindCoordinates(target,'LeftEye');
 toc;
-x1 = coor_EyeL(1); % sol gÃ¶z
-x2 = coor_EyeR(1)+coor_EyeR(3); % saÄŸ gÃ¶z
-x3 = coor_Mouth(1)+coor_Mouth(3); % aÄŸÄ±z solu
-x4 = coor_Mouth(1); % aÄŸÄ±z saÄŸÄ±
+x1 = coor_EyeL(1); % sol göz
+x2 = coor_EyeR(1)+coor_EyeR(3); % sað göz
+x3 = coor_Mouth(1)+coor_Mouth(3); % aðýz solu
+x4 = coor_Mouth(1); % aðýz saðý
 y1 = coor_EyeL(2); 
 y2 = coor_EyeR(2);
 y3 = coor_Mouth(2) + coor_Mouth(4);
 y4 = coor_Mouth(2) + coor_Mouth(4);
+
+centerX = round((x1 + x2 + x3 + x4) / 4);
+centerY = round((y1 + y2 + y3 + y4) / 4);
+
 tic;
-[ImA,maskA3,centX,centY,cornerX,cornerY] = getMask(source);
-figure,
-imshow(ImA);
-ImA = imresize(ImA,[x2-x1 y4-y1]);
-maskA3 = imresize(maskA3,[x2-x1 y4-y1]);
-realMask = zeros(size(target));
-realImage = zeros(size(target));
-%% burada gelen maske ve kesilmiÅŸ resmi crop ediyoruz, kesildiÄŸi yer ile aynÄ± boyutta oluyorda yanlarÄ± siyah oluyordu
-% ama bÃ¼yÃ¼tme iÃ§in sadece resim olan yerin elimizde olmasÄ± lazÄ±m.
-for j=1:(x2-x1)
-    for i=1:y4-y1
-        realMask(y1+j-1,x1+i-1,1) = maskA3(j,i,1);
-        realMask(y1+j -1,x1+i-1,2) = maskA3(j,i,2);
-        realMask(y1+j -1,x1+i-1,3) = maskA3(j,i,3);
-        
-        realImage(y1+j-1,x1+i-1,1) = ImA(j,i,1);
-        realImage(y1+j -1,x1+i-1,2) = ImA(j,i,2);
-        realImage(y1+j -1,x1+i-1,3) = ImA(j,i,3);
-    end
-end
+width = x2-x1;
+height = y4-y1;
+[ImA,maskA3,centX,centY,cornerX,cornerY] = getMask(source,width,height,centerX,centerY,size(target));
+ImA = imresize(ImA,[size(target,1) size(target,2)]);
+maskA3 = imresize(maskA3,[size(target,1) size(target,2)]);
+
+
+
+
+shiftx=int32(centerX-centX);
+shifty=int32(centerY-centY);
+shiftedIm=circshift(ImA,[shifty,shiftx]);
+shiftedMask=circshift(maskA3,[shifty,shiftx]);
 %%
 
 
 toc;
 
-result = realImage.*realMask + target.*(1-realMask);
+result = shiftedIm.*shiftedMask + target.*(1-shiftedMask);
 
 %%
-rateX = size(target,1) / size(source,1);
-rateY = size(target,2) / size(source,2);
 
-source = imresize(source,[size(target,1) size(target,2)]);
-figure,
-imshow(realImage)
-% burada gradientleri alÄ±rken sorun oluyor source resmi elimizdeki resimle
-% aynÄ± oranda deÄŸil. boyutlarÄ± aynÄ± ama bizim elimizdeki surat daha bÃ¼yÃ¼k.
-% Ã¶yle olunca surattan daha bÃ¼yÃ¼k yerleri alÄ±yor. Ã§Ã¶zÃ¼m iÃ§in resmi surat
-% farkÄ±nda bÃ¼yÃ¼ttÃ¼kten kaydetmek lazÄ±m.
-[Lh Lv] = imgrad(target);
-[Gh Gv] = imgrad(source);
+
+
+
+% burada gradientleri alýrken sorun oluyor source resmi elimizdeki resimle
+% ayný oranda deðil. boyutlarý ayný ama bizim elimizdeki surat daha büyük.
+% öyle olunca surattan daha büyük yerleri alýyor. çözüm için resmi surat
+% farkýnda büyüttükten kaydetmek lazým.
+[Lh, Lv] = imgrad(target);
+[Gh, Gv] = imgrad(ImA);
 
 
 X = result;
 Fh = Lh;
 Fv = Lv;
-cornerX = cornerX *rateX;
-cornerY = cornerY *rateY;
-centX = centX *rateX;
-centY = centY *rateY;
 
-w = int32((cornerX - double(centX)) * -2) * 1/ rateX;
-h = int32((cornerY - double(centY)) * -2) * 1/ rateY;
-LX = int32(cornerX) - 50;
-LY = int32(cornerY);
-GX = int32(x1) + 50;
-GY = int32(y1) + 10;
-% sorun burada +50 falan denemek iÃ§in.
+
+w = width;
+h = height;
+LX = int32(x1);
+LY = int32(y1);
+isfind = 0;
+for i=1:size(ImA,1)
+    for j=1:size(ImA,2)
+        if(maskA3(j,i,1) == 1)
+            GX = i;
+            GY = j;
+            isfind = 1;
+            break
+        end
+    end
+    if (isfind == 1)
+    break
+    end
+end
+
+
+
+% sorun burada +50 falan denemek için.
+x = [x1 x2 x3 x4 x1];
+y = [y1 y2 y3 y4 y1];
+bw = poly2mask(x,y,size(target,1),size(target,2));
+targetMask=repmat(bw,[1,1,3]);
 
 
 Fh(LY:LY+h,LX:LX+w,:) = Gh(GY:GY+h,GX:GX+w,:);
 Fv(LY:LY+h,LX:LX+w,:) = Gv(GY:GY+h,GX:GX+w,:);
-figure,
-imshow(Fh);
-figure,
-imshow(Fv);
+
 imwrite(X,'X.png');
 
 tic;
-Y = PoissonJacobi(X, Fh, Fv, realMask );
+Y = PoissonJacobi(X, Fh, Fv, shiftedMask );
 toc
 figure,
 imshow(Y);
     
-imwrite(Y,'Yjc.png');
+imwrite(Y,'jacobi1.png');
 tic;
-%Y = PoissonGaussSeidel( X, Fh, Fv, realMask );
+Y = PoissonGaussSeidel( X, Fh, Fv, shiftedMask );
 toc
-%imwrite(Y,'Ygs.png');
+imwrite(Y,'gauss1.png');
